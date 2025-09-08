@@ -1,0 +1,173 @@
+name: Build and Publish to GHCR
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pyzmq
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run Docker build tests
+      run: |
+        python -m pytest tests/docker/test_build.py -v
+
+    - name: Run StreamDeploy integration tests
+      run: |
+        python -m pytest tests/integration/test_streamdeploy_integration.py -v
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=raspberry-pi,enable={{is_default_branch}},suffix=-arm64
+
+    - name: Build and push multi-architecture image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build Raspberry Pi specific image
+      if: github.ref == 'refs/heads/main'
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/arm64
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:raspberry-pi
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  security-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  deployment-test:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Test container deployment
+      run: |
+        # Pull the built image
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Test basic deployment
+        docker run -d --name test-deployment \
+          -e ROBOT_ID=ci-test-robot \
+          -e DEPLOY_ENV=testing \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        
+        # Wait for startup
+        sleep 10
+        
+        # Check container is running
+        docker ps | grep test-deployment
+        
+        # Check logs for expected patterns
+        docker logs test-deployment 2>&1 | grep -E "(Configuring LeKiwi|Starting HostAgent)"
+        
+        # Cleanup
+        docker stop test-deployment
+        docker rm test-deployment
+
+    - name: Test Raspberry Pi image
+      run: |
+        # Test ARM64 image can be pulled (emulated)
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:raspberry-pi
+        
+        # Basic smoke test
+        docker run --rm --platform linux/arm64 \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:raspberry-pi \
+          python -c "import lerobot; print('ARM64 image OK')"
+
+  notify-success:
+    needs: [test, build-and-push, security-scan, deployment-test]
+    runs-on: ubuntu-latest
+    if: success() && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Notify deployment ready
+      run: |
+        echo "✅ LeKiwi base container successfully built and published to GHCR"
+        echo "🐳 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+        echo "🥧 Raspberry Pi: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:raspberry-pi"
+        echo "🚀 Ready for StreamDeploy fleet deployment"

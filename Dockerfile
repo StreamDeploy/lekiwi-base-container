@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git ffmpeg \
     libavformat-dev libavcodec-dev libavdevice-dev libavutil-dev \
     libswscale-dev libswresample-dev libavfilter-dev \
-    libglib2.0-0 libgl1-mesa-glx libegl1-mesa \
+    libglib2.0-0 libgl1-mesa-dri libegl1-mesa-dev \
     speech-dispatcher libgeos-dev \
  && rm -rf /var/lib/apt/lists/*
 
@@ -24,18 +24,16 @@ RUN groupadd -g $GID $USER && useradd -m -u $UID -g $GID -s /bin/bash $USER
 
 # Set up work directories
 WORKDIR /opt
-RUN mkdir -p /opt/lerobot /opt/lekiwi
+RUN mkdir -p /opt/lerobot
 COPY --chown=$USER:$USER lerobot /opt/lerobot
-COPY --chown=$USER:$USER lekiwi /opt/lekiwi
 
-USER $USER
-
-# Install Python dependencies.  We pin lerobot from source for reproducibility.
-# Extras `feetech` and `dynamixel` enable LeKiwi’s motors; add others if needed.
+# Install Python dependencies as root first, then switch to user
+# Extras `feetech` and `dynamixel` enable LeKiwi's motors; add others if needed.
 RUN python -m pip install --upgrade pip \
  && pip install --no-cache-dir /opt/lerobot[feetech,dynamixel] \
- && pip install --no-cache-dir /opt/lekiwi \
  && python -m pip cache purge
+
+USER $USER
 
 # Default environment (can be overridden by StreamDeploy config)
 ENV ROBOT_ID="my-kiwi" \
@@ -43,8 +41,8 @@ ENV ROBOT_ID="my-kiwi" \
 
 # Health check: succeed when lekiwi_host is running
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
-  CMD pgrep -f "lerobot.common.robots.lekiwi.lekiwi_host" || exit 1
+  CMD pgrep -f "lerobot.robots.lekiwi.lekiwi_host" || exit 1
 
 # Entry script – uses env vars for config
 ENTRYPOINT ["bash","-c"]
-CMD ["python -m lerobot.common.robots.lekiwi.lekiwi_host --robot.id ${ROBOT_ID}"]
+CMD ["python -m lerobot.robots.lekiwi.lekiwi_host --robot.id ${ROBOT_ID}"]
