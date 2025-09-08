@@ -25,13 +25,18 @@ RUN groupadd -g $GID $USER && useradd -m -u $UID -g $GID -s /bin/bash $USER
 # Set up work directories
 WORKDIR /opt
 RUN mkdir -p /opt/lerobot
-COPY --chown=$USER:$USER lerobot /opt/lerobot
 
-# Install Python dependencies as root first, then switch to user
+# Copy files as root first (no chown during copy to avoid permission issues)
+COPY lerobot /opt/lerobot
+
+# Install Python dependencies as root (before USER switch)
 # Extras `feetech` and `dynamixel` enable LeKiwi's motors; add others if needed.
 RUN python -m pip install --upgrade pip \
  && pip install --no-cache-dir -e "/opt/lerobot[feetech,dynamixel]" \
  && python -m pip cache purge
+
+# Change ownership of the lerobot directory to the robot user
+RUN chown -R $USER:$USER /opt/lerobot
 
 USER $USER
 
