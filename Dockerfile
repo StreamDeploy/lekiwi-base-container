@@ -30,7 +30,7 @@ COPY --chown=$USER:$USER lerobot /opt/lerobot
 # Install Python dependencies as root first, then switch to user
 # Extras `feetech` and `dynamixel` enable LeKiwi's motors; add others if needed.
 RUN python -m pip install --upgrade pip \
- && pip install --no-cache-dir "/opt/lerobot[feetech,dynamixel]" \
+ && pip install --no-cache-dir -e "/opt/lerobot[feetech,dynamixel]" \
  && python -m pip cache purge
 
 USER $USER
