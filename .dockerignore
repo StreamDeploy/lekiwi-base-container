@@ -2,3 +2,7 @@
 .git/
 venv/
 .DS_Store
+
+# Don't exclude lerobot directory contents needed for Docker build
+!lerobot/
+!lerobot/**
