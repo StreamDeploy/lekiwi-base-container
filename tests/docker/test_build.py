@@ -19,6 +19,11 @@ class TestDockerBuild:
         """Get project root directory"""
         return Path(__file__).parent.parent.parent
     
+    @pytest.fixture
+    def lerobot_root(self, project_root):
+        """Get lerobot directory (Docker build context)"""
+        return project_root / "lerobot"
+    
     def test_dockerfile_exists(self, project_root):
         """Verify Dockerfile exists and is readable"""
         dockerfile = project_root / "Dockerfile"
@@ -31,13 +36,14 @@ class TestDockerBuild:
             assert len(content) > 0, "Dockerfile is empty"
             assert "FROM python:" in content, "Dockerfile doesn't use Python base image"
     
-    def test_build_amd64(self, project_root):
+    def test_build_amd64(self, project_root, lerobot_root):
         """Test AMD64 container build"""
         cmd = [
             "docker", "build",
             "--platform", "linux/amd64",
             "--tag", "lekiwi-base:test-amd64",
-            str(project_root)
+            "--file", str(project_root / "Dockerfile"),
+            str(lerobot_root)
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=project_root)
@@ -45,7 +51,7 @@ class TestDockerBuild:
         assert result.returncode == 0, f"AMD64 build failed: {result.stderr}"
         assert "Successfully tagged lekiwi-base:test-amd64" in result.stdout
     
-    def test_build_arm64(self, project_root):
+    def test_build_arm64(self, project_root, lerobot_root):
         """Test ARM64 container build for Raspberry Pi"""
         # Check if buildx is available for multi-arch builds
         buildx_check = subprocess.run(
@@ -60,21 +66,23 @@ class TestDockerBuild:
             "docker", "buildx", "build",
             "--platform", "linux/arm64",
             "--tag", "lekiwi-base:test-arm64",
+            "--file", str(project_root / "Dockerfile"),
             "--load",  # Load into local docker daemon
-            str(project_root)
+            str(lerobot_root)
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=project_root)
         
         assert result.returncode == 0, f"ARM64 build failed: {result.stderr}"
     
-    def test_container_structure(self, project_root):
+    def test_container_structure(self, project_root, lerobot_root):
         """Test container internal structure and dependencies"""
         # Build container first
         build_cmd = [
             "docker", "build",
             "--tag", "lekiwi-base:test-structure",
-            str(project_root)
+            "--file", str(project_root / "Dockerfile"),
+            str(lerobot_root)
         ]
         
         build_result = subprocess.run(build_cmd, capture_output=True, text=True, cwd=project_root)
@@ -102,12 +110,13 @@ class TestDockerBuild:
         assert lekiwi_result.returncode == 0, f"LeKiwi host module test failed: {lekiwi_result.stderr}"
         assert "LeKiwi host module OK" in lekiwi_result.stdout
     
-    def test_container_user_security(self, project_root):
+    def test_container_user_security(self, project_root, lerobot_root):
         """Test container runs as non-root user (StreamDeploy security requirement)"""
         build_cmd = [
             "docker", "build",
             "--tag", "lekiwi-base:test-security",
-            str(project_root)
+            "--file", str(project_root / "Dockerfile"),
+            str(lerobot_root)
         ]
         
         build_result = subprocess.run(build_cmd, capture_output=True, text=True, cwd=project_root)
@@ -136,12 +145,13 @@ class TestDockerBuild:
         assert "uid=1000(robot)" in id_result.stdout
         assert "gid=1000(robot)" in id_result.stdout
     
-    def test_environment_variables(self, project_root):
+    def test_environment_variables(self, project_root, lerobot_root):
         """Test default environment variables are set correctly"""
         build_cmd = [
             "docker", "build",
             "--tag", "lekiwi-base:test-env",
-            str(project_root)
+            "--file", str(project_root / "Dockerfile"),
+            str(lerobot_root)
         ]
         
         build_result = subprocess.run(build_cmd, capture_output=True, text=True, cwd=project_root)
@@ -161,12 +171,13 @@ class TestDockerBuild:
         assert "ROBOT_ID=my-kiwi" in env_output
         assert "DEPLOY_ENV=production" in env_output
     
-    def test_health_check_command(self, project_root):
+    def test_health_check_command(self, project_root, lerobot_root):
         """Test health check command works"""
         build_cmd = [
             "docker", "build",
             "--tag", "lekiwi-base:test-health",
-            str(project_root)
+            "--file", str(project_root / "Dockerfile"),
+            str(lerobot_root)
         ]
         
         build_result = subprocess.run(build_cmd, capture_output=True, text=True, cwd=project_root)
