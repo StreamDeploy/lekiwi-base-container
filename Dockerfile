@@ -26,15 +26,12 @@ RUN groupadd -g $GID $USER && useradd -m -u $UID -g $GID -s /bin/bash $USER
 WORKDIR /opt
 RUN mkdir -p /opt/lerobot
 
-# Copy files as root first (no chown during copy to avoid permission issues)
-COPY lerobot /opt/lerobot
-
-# Debug: Check what was actually copied
-RUN echo "=== Debugging file copy ===" \
- && ls -la /opt/lerobot \
- && echo "=== Checking for pyproject.toml ===" \
- && ls -la /opt/lerobot/pyproject.toml || echo "pyproject.toml not found!" \
- && echo "=== End debugging ==="
+# Copy essential files explicitly to ensure they're included
+COPY lerobot/pyproject.toml /opt/lerobot/
+COPY lerobot/src /opt/lerobot/src
+COPY lerobot/README.md /opt/lerobot/
+COPY lerobot/LICENSE /opt/lerobot/
+COPY lerobot/MANIFEST.in /opt/lerobot/
 
 # Install Python dependencies as root (before USER switch)
 # Extras `feetech` and `dynamixel` enable LeKiwi's motors; add others if needed.
