@@ -1,6 +1,4 @@
-__pycache__
-*.tgz
-lekiwi/media/
-tests/
+# Absolute minimal .dockerignore - only exclude what's essential
+.git/
 venv/
 .DS_Store
