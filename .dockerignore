@@ -1,8 +1,16 @@
-# Absolute minimal .dockerignore - only exclude what's essential
-.git/
+# local env & VCS
 venv/
-.DS_Store
+.git/
+.gitignore
+**/__pycache__/
+*.pyc
 
-# Don't exclude lerobot directory contents needed for Docker build
-!lerobot/
-!lerobot/**
+# big / not needed at build time
+lerobot/tests/
+lerobot/docs/
+lerobot/media/
+lekiwi/3DPrintMeshes/
+lekiwi/media/
+
+# OS cruft
+.DS_Store

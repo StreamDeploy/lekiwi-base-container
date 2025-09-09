@@ -1,0 +1,4 @@
+FROM alpine:latest
+RUN echo "=== BUILD CONTEXT CONTENTS ===" && find . -name "lerobot*" -type d 2>/dev/null || echo "No lerobot directory found"
+RUN echo "=== ROOT DIRECTORY LISTING ===" && ls -la . 2>/dev/null || echo "Cannot list root"
+RUN echo "=== CHECKING FOR LEROBOT FILES ===" && ls -la lerobot/ 2>/dev/null || echo "lerobot directory not accessible"
