@@ -27,11 +27,11 @@ WORKDIR /opt
 RUN mkdir -p /opt/lerobot
 
 # Copy essential files explicitly to ensure they're included
-COPY pyproject.toml /opt/lerobot/
-COPY src /opt/lerobot/src
-COPY README.md /opt/lerobot/
-COPY LICENSE /opt/lerobot/
-COPY MANIFEST.in /opt/lerobot/
+COPY lerobot/pyproject.toml /opt/lerobot/
+COPY lerobot/src /opt/lerobot/src
+COPY lerobot/README.md /opt/lerobot/
+COPY lerobot/LICENSE /opt/lerobot/
+COPY lerobot/MANIFEST.in /opt/lerobot/
 
 # Install Python dependencies as root (before USER switch)
 # Extras `feetech` and `dynamixel` enable LeKiwi's motors; add others if needed.
