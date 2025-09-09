@@ -1,5 +1,6 @@
 __pycache__
 *.tgz
-datasets/
-media/
-!lerobot/
+lekiwi/media/
+tests/
+venv/
+.DS_Store
