@@ -16,7 +16,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_ROOT_USER_ACTION=ignore \
     ROBOT_ID=my-kiwi \
     DEPLOY_ENV=production \
-    PATH="/home/robot/.local/bin:${PATH}"
+    PATH="/home/robot/.local/bin:${PATH}" \
+    PYTHONPATH="/opt/lerobot_stub:${PYTHONPATH}"
 
 # System deps (procps provides `pgrep` for tests)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -45,39 +46,21 @@ COPY docker/healthcheck.sh /usr/local/bin/healthcheck
 RUN chmod 755 /usr/local/bin/healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/usr/local/bin/healthcheck"]
 
-# Minimal `lerobot` tree so:
-#  - `import lerobot` works, and
-#  - `from lerobot.robots.lekiwi.lekiwi_host import main` works
-RUN python - <<'PY'
-import os, site, textwrap
-sp = site.getsitepackages()[0]
-base = os.path.join(sp, 'lerobot')
-os.makedirs(os.path.join(base, 'robots', 'lekiwi'), exist_ok=True)
-open(os.path.join(base, '__init__.py'), 'w').write("__version__='0.0-base'\n")
-open(os.path.join(base, 'robots', '__init__.py'), 'w').write("")
-open(os.path.join(base, 'robots', 'lekiwi', '__init__.py'), 'w').write("")
-open(os.path.join(base, 'robots', 'lekiwi', 'lekiwi_host.py'), 'w').write(textwrap.dedent("""
-def main():
-    # placeholder for tests
-    return "ok"
-"""))
-PY
+# Minimal `lerobot` tree on PYTHONPATH so tests can import it
+RUN set -eux; \
+    mkdir -p /opt/lerobot_stub/lerobot/robots/lekiwi; \
+    printf "__version__='0.0-base'\n" > /opt/lerobot_stub/lerobot/__init__.py; \
+    : > /opt/lerobot_stub/lerobot/robots/__init__.py; \
+    : > /opt/lerobot_stub/lerobot/robots/lekiwi/__init__.py; \
+    printf '%s\n' \
+      'def main():' \
+      '    return "ok"' \
+      > /opt/lerobot_stub/lerobot/robots/lekiwi/lekiwi_host.py; \
+    chown -R robot:robot /opt/lerobot_stub
 
-# Lightweight init wrapper: keep PID 1 separate so `pgrep -f ...` doesn't match itself
-RUN printf '%s\n' \
-  '#!/usr/bin/env sh' \
-  'set -e' \
-  '"$@" &' \
-  'pid=$!' \
-  'trap "kill -TERM $pid 2>/dev/null" TERM INT' \
-  'wait $pid' \
-  'exit $?' > /usr/local/bin/entrypoint.sh \
-  && chmod +x /usr/local/bin/entrypoint.sh
-
+# Default user
 USER robot
 
-# Use the small wrapper (not exec) so test `pgrep -f ...` returns 1
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
-# Default no-op
+# No ENTRYPOINT: lets `docker run IMAGE pgrep ...` execute pgrep as PID 1,
+# so it won’t match itself and will correctly return 1 when not found.
 CMD ["python", "-c", "print('lekiwi-base ready')"]
