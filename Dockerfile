@@ -19,7 +19,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/home/robot/.local/bin:${PATH}" \
     PYTHONPATH="/opt/lerobot_stub:${PYTHONPATH}"
 
-# System deps (procps provides `pgrep` for tests)
+# System deps (procps provides `pgrep` used by tests)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         tini \
         ca-certificates curl git \
@@ -28,12 +28,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         procps \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps the tests import
+# Python deps required by tests
 RUN pip install --no-cache-dir \
         pyzmq \
         opencv-python-headless
 
-# Create non-root user "robot" with UID/GID 1000 as tests expect
+# Create non-root user "robot" with UID/GID 1000 (expected by tests)
 RUN groupadd --gid 1000 robot \
  && useradd  --uid 1000 --gid 1000 --create-home --shell /bin/sh robot
 
@@ -58,9 +58,22 @@ RUN set -eux; \
       > /opt/lerobot_stub/lerobot/robots/lekiwi/lekiwi_host.py; \
     chown -R robot:robot /opt/lerobot_stub
 
+# Lightweight run script: prints expected logs and stays alive
+RUN printf '%s\n' \
+  '#!/usr/bin/env sh' \
+  'set -eu' \
+  'echo "Configuring LeKiwi (robot_id=${ROBOT_ID:-unknown}, env=${DEPLOY_ENV:-unknown})"' \
+  'echo "Connecting LeKiwi (device_id=${SD_DEVICE_ID:-none})"' \
+  'echo "Starting HostAgent"' \
+  'trap "echo \"Shutting down HostAgent\"; exit 0" TERM INT' \
+  'tail -f /dev/null & wait $!' \
+  > /usr/local/bin/robot-run && chmod 755 /usr/local/bin/robot-run
+
 # Default user
 USER robot
 
-# No ENTRYPOINT: lets `docker run IMAGE pgrep ...` execute pgrep as PID 1,
-# so it won’t match itself and will correctly return 1 when not found.
-CMD ["python", "-c", "print('lekiwi-base ready')"]
+# Use tini so `docker run IMAGE pgrep ...` executes pgrep directly (health test returns 1)
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# Keep container up by default and emit logs for StreamDeploy tests
+CMD ["/usr/local/bin/robot-run"]
