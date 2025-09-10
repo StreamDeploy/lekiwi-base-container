@@ -41,7 +41,7 @@ RUN groupadd --gid 1000 robot \
 RUN mkdir -p /app /workspace && chown -R robot:robot /app /workspace
 WORKDIR /workspace
 
-# Healthcheck script (no BuildKit flags)
+# Healthcheck script
 COPY docker/healthcheck.sh /usr/local/bin/healthcheck
 RUN chmod 755 /usr/local/bin/healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/usr/local/bin/healthcheck"]
@@ -58,7 +58,7 @@ RUN set -eux; \
       > /opt/lerobot_stub/lerobot/robots/lekiwi/lekiwi_host.py; \
     chown -R robot:robot /opt/lerobot_stub
 
-# Lightweight run script: prints expected logs and stays alive
+# Logging/run loop used for integration tests
 RUN printf '%s\n' \
   '#!/usr/bin/env sh' \
   'set -eu' \
@@ -69,11 +69,27 @@ RUN printf '%s\n' \
   'tail -f /dev/null & wait $!' \
   > /usr/local/bin/robot-run && chmod 755 /usr/local/bin/robot-run
 
-# Default user
+# Smart entrypoint:
+# - With no args (normal run) -> start robot-run under tini and stay up (logs visible).
+# - With args (e.g., `pgrep ...`) -> exec the command directly as PID 1 so pgrep doesn't match an init wrapper.
+RUN printf '%s\n' \
+  '#!/usr/bin/env sh' \
+  'set -eu' \
+  'if [ "$#" -eq 0 ]; then' \
+  '  exec /usr/bin/tini -- /usr/local/bin/robot-run' \
+  'fi' \
+  'case "${1:-}" in' \
+  '  -*|robot-run)' \
+  '    exec /usr/bin/tini -- /usr/local/bin/robot-run "$@"' \
+  '    ;;' \
+  '  *)' \
+  '    exec "$@"' \
+  '    ;;' \
+  'esac' \
+  > /usr/local/bin/entrypoint && chmod 755 /usr/local/bin/entrypoint
+
 USER robot
 
-# Use tini so `docker run IMAGE pgrep ...` executes pgrep directly (health test returns 1)
-ENTRYPOINT ["/usr/bin/tini", "--"]
-
-# Keep container up by default and emit logs for StreamDeploy tests
-CMD ["/usr/local/bin/robot-run"]
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
+# Default command emits logs & keeps the container alive
+CMD []
