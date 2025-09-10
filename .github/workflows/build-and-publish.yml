@@ -153,7 +153,7 @@ jobs:
 
       - name: Test Raspberry Pi image
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:raspberry-pi
+          docker pull --platform linux/arm64 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:raspberry-pi
           docker run --rm --platform linux/arm64 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:raspberry-pi \
             python -c "import lerobot; print('ARM64 image OK')"
