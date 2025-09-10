@@ -138,6 +138,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # NEW: enable ARM emulation so docker run --platform linux/arm64 works
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Test container deployment
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
