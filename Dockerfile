@@ -70,8 +70,8 @@ RUN printf '%s\n' \
   > /usr/local/bin/robot-run && chmod 755 /usr/local/bin/robot-run
 
 # Smart entrypoint:
-# - With no args (normal run) -> start robot-run under tini and stay up (logs visible).
-# - With args (e.g., `pgrep ...`) -> exec the command directly as PID 1 so pgrep doesn't match an init wrapper.
+# - With no args (normal run)-> start robot-run under tini and stay up (logs visible).
+# - With args (e.g., `pgrep ...`)-> exec the command directly as PID 1 so pgrep doesn't match an init wrapper.
 RUN printf '%s\n' \
   '#!/usr/bin/env sh' \
   'set -eu' \
