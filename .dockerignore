@@ -14,3 +14,7 @@ lekiwi/media/
 
 # OS cruft
 .DS_Store
+
+# Keep healthcheck in the build context
+!docker/
+!docker/**
