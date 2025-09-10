@@ -1,12 +1,7 @@
-# ./docker/healthcheck.sh
+# docker/healthcheck.sh
 #!/usr/bin/env sh
 set -eu
-
-# Minimal, fast checks that prove the container is viable.
 command -v python >/dev/null 2>&1 || { echo "python missing"; exit 1; }
 command -v ffmpeg >/dev/null 2>&1 || { echo "ffmpeg missing"; exit 1; }
-
-# SSL import catches common cert/ssl issues on slim images.
 python -c "import ssl" >/dev/null 2>&1 || { echo "python ssl failed"; exit 1; }
-
 echo "OK"
