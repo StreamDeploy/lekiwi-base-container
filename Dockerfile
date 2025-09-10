@@ -38,8 +38,9 @@ RUN groupadd --system robot && useradd --system --create-home --gid robot robot
 RUN mkdir -p /app /workspace && chown -R robot:robot /app /workspace
 WORKDIR /workspace
 
-# Healthcheck script
-COPY --chmod=755 docker/healthcheck.sh /usr/local/bin/healthcheck
+# Healthcheck script (legacy builder friendly)
+COPY docker/healthcheck.sh /usr/local/bin/healthcheck
+RUN chmod 755 /usr/local/bin/healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/usr/local/bin/healthcheck"]
 
 # Proper init
